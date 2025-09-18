@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Dork Finder Avançado</title>
+<style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select { width: 60%; padding: 5px; margin-top: 5px; }
+    #entry_final_query { width: 90%; }
+    button { margin: 5px; padding: 10px 15px; }
+    .suggestion { text-align: left; cursor: pointer; background-color: #f0f0f0; margin: 3px 0; padding: 5px; border: none; width: 95%; }
+    .suggestion:hover { background-color: #d0d0ff; }
+</style>
+</head>
+<body>
+
+<h2>Dork Finder Avançado</h2>
+
+<label>Nome (opcional):</label>
+<input type="text" id="entry_name">
+
+<label>Bairro/Cidade (opcional):</label>
+<input type="text" id="entry_location">
+
+<label>Termos extras (palavras, OR, etc):</label>
+<input type="text" id="entry_extra">
+
+<label>Categoria:</label>
+<select id="combo_category" onchange="updateSubcategories()"></select>
+
+<label>Subcategoria:</label>
+<select id="combo_subcategory"></select>
+
+<label>Domínio de e-mail (opcional):</label>
+<select id="combo_email">
+</select>
+
+<label>Query final (pode copiar/editar):</label>
+<input type="text" id="entry_final_query" readonly>
+
+<div>
+    <button onclick="searchGoogle()">🔍 Buscar no Google</button>
+    <button onclick="generateSuggestions()">💡 Gerar Sugestões</button>
+    <button onclick="clearAll()">🧹 Limpar tudo</button>
+</div>
+
+<h3>Sugestões de Queries (clique para buscar):</h3>
+<div id="frame_suggestions"></div>
+
+<script>
+// ===================== Dados =====================
+const CATEGORIES = {
+    "Redes Sociais": {
+        "Facebook": "site:facebook.com",
+        "Instagram": "site:instagram.com",
+        "Twitter (X)": "site:twitter.com",
+        "LinkedIn": "site:linkedin.com",
+        "TikTok": "site:tiktok.com",
+        "Pinterest": "site:pinterest.com",
+        "Reddit": "site:reddit.com",
+        "YouTube": "site:youtube.com",
+        "Vimeo": "site:vimeo.com",
+        "Twitch": "site:twitch.tv",
+        "Netflix": "site:netflix.com",
+        "Prime Video": "site:primevideo.com",
+        "Disney+": "site:disneyplus.com",
+        "Mercado Livre": "site:mercadolivre.com.br",
+        "Amazon BR": "site:amazon.com.br",
+        "Magazine Luiza": "site:magazineluiza.com.br",
+        "Shopee": "site:shopee.com.br",
+        "Americanas": "site:americanas.com.br",
+        "AliExpress": "site:aliexpress.com",
+        "Snapchat": "site:snapchat.com",
+        "Telegram": "site:telegram.org",
+        "WhatsApp Web": "site:web.whatsapp.com"
+    },
+    "Documentos": {
+        "PDFs": "filetype:pdf",
+        "DOCs": "filetype:doc",
+        "DOCX": "filetype:docx",
+        "Planilhas Excel": "filetype:xls OR filetype:xlsx",
+        "CSV": "filetype:csv",
+        "Apresentações PowerPoint": "filetype:ppt OR filetype:pptx",
+        "TXT": "filetype:txt",
+        "RTF": "filetype:rtf",
+        "ODT": "filetype:odt",
+        "ODS": "filetype:ods"
+    },
+    "Notícias": {
+        "G1": "site:g1.globo.com",
+        "UOL": "site:uol.com.br",
+        "Folha de S.Paulo": "site:folha.uol.com.br",
+        "Estadão": "site:estadao.com.br",
+        "CNN Brasil": "site:cnnbrasil.com.br",
+        "BBC Brasil": "site:bbc.com/portuguese",
+        "O Globo": "site:oglobo.globo.com",
+        "R7": "site:r7.com",
+        "Terra Notícias": "site:terra.com.br/noticias",
+        "Jovem Pan": "site:jovempan.com.br",
+        "Carta Capital": "site:cartacapital.com.br"
+    },
+    "Comércio / Anúncios": {
+        "OLX": "site:olx.com.br",
+        "Mercado Livre": "site:mercadolivre.com.br",
+        "Zap Imóveis": "site:zapimoveis.com.br",
+        "Viva Real": "site:vivareal.com.br",
+        "Ebay": "site:ebay.com",
+        "Amazon Brasil": "site:amazon.com.br",
+        "Submarino": "site:submarino.com.br",
+        "Americanas": "site:americanas.com.br",
+        "Shopee": "site:shopee.com.br",
+        "OLX Autos": "site:olxautos.com.br"
+    },
+    "Governo / Concursos": {
+        "Governo Federal (Portal)": "site:gov.br",
+        "Diário Oficial da União": "site:in.gov.br",
+        "Câmara dos Deputados": "site:camara.leg.br",
+        "Senado Federal": "site:senado.leg.br",
+        "Supremo Tribunal Federal (STF)": "site:stf.jus.br",
+        "Governo de São Paulo": "site:sp.gov.br",
+        "Governo do Rio de Janeiro": "site:rj.gov.br",
+        "Governo de Minas Gerais": "site:mg.gov.br",
+        "Governo do Rio Grande do Sul": "site:rs.gov.br",
+        "Governo da Bahia": "site:ba.gov.br",
+        "PCI Concursos": "site:pciconcursos.com.br",
+        "Qconcursos": "site:qconcursos.com",
+        "Folha Dirigida": "site:folhadirigida.com.br",
+        "Gran Cursos Online": "site:grancursosonline.com.br",
+        "Estratégia Concursos": "site:estrategiaconcursos.com.br",
+        "Direção Concursos": "site:direcaoconcursos.com.br",
+        "Cebraspe": "site:cebraspe.org.br",
+        "Fundação Getulio Vargas (FGV)": "site:conhecimento.fgv.br",
+        "Fundação Cesgranrio": "site:cesgranrio.org.br",
+        "Fundação Carlos Chagas (FCC)": "site:concursosfcc.com.br",
+        "Editais (PDF)": "intext:\"edital de abertura\" OR intext:\"processo seletivo simplificado\" filetype:pdf"
+    },
+    "Jurídico": {
+        "JusBrasil": "site:jusbrasil.com.br",
+        "STF": "site:stf.jus.br",
+        "STJ": "site:stj.jus.br",
+        "Tribunal de Justiça RJ": "site:tjrj.jus.br",
+        "Tribunal de Justiça SP": "site:tjsp.jus.br",
+        "TRF1": "site:trf1.jus.br",
+        "TRF2": "site:trf2.jus.br",
+        "TRF3": "site:trf3.jus.br",
+        "TRF4": "site:trf4.jus.br",
+        "TRF5": "site:trf5.jus.br"
+    },
+    "Empresas / MEI / CNPJ": {
+        "Consulta CNPJ": "site:cnpj.biz OR site:cnpj.info",
+        "Consulta MEI": "site:gov.br mei",
+        "Telelistas": "site:telelistas.net",
+        "Receita Federal CNPJ": "site:receita.economia.gov.br cnpj",
+        "Empresas e Negócios": "site:empresas.com.br",
+        "Junta Comercial SP": "site:jucesp.sp.gov.br",
+        "Junta Comercial RJ": "site:jucesp.rj.gov.br",
+        "CNPJ Online": "site:cnpj.online",
+        "CNPJs Abertos": "site:cnpjsabertos.com.br",
+        "Cadastro Nacional de Empresas": "site:cnpj.fazenda.gov.br"
+    },
+    "Universidades": {
+        "USP": "site:usp.br",
+        "UFRJ": "site:ufrj.br",
+        "UFMG": "site:ufmg.br",
+        "UNB": "site:unb.br",
+        "UFBA": "site:ufba.br",
+        "UFSC": "site:ufsc.br",
+        "UFPR": "site:ufpr.br",
+        "UFRGS": "site:ufrgs.br",
+        "UFPE": "site:ufpe.br",
+        "UFG": "site:ufg.br",
+        "PUC-RJ": "site:puc-rio.br",
+        "PUC-SP": "site:pucsp.br",
+        "PUC-MG": "site:pucminas.br",
+        "FAAP": "site:faap.br",
+        "Mackenzie": "site:mackenzie.br",
+        "FGV": "site:fgv.br",
+        "Insper": "site:insper.edu.br",
+        "IBMEC": "site:ibmec.edu.br",
+        "Estácio": "site:estacio.br",
+        "Anhanguera": "site:anhanguera.com.br",
+        "Unicesumar": "site:unicesumar.edu.br",
+        "Unip": "site:unip.br",
+        "Uninove": "site:uninove.br",
+        "UniBrasil": "site:unibrasil.com.br"
+    }
+};
+
+const EMAIL_DOMAINS = [
+    "@gmail.com", "@hotmail.com", "@outlook.com", "@yahoo.com",
+    "@uol.com.br", "@bol.com.br", "@terra.com.br", "@ig.com.br",
+    "@edu.br", "@gov.br", "@org.br", "@icloud.com", "@protonmail.com"
+];
+
+// ===================== Funções =====================
+function searchGoogle() {
+    const name = document.getElementById('entry_name').value.trim();
+    const location = document.getElementById('entry_location').value.trim();
+    const extra = document.getElementById('entry_extra').value.trim();
+    const category = document.getElementById('combo_category').value;
+    const subcategory = document.getElementById('combo_subcategory').value;
+    const email_domain = document.getElementById('combo_email').value;
+
+    if (!category || !subcategory) {
+        alert("Selecione uma categoria e subcategoria!");
+        return;
+    }
+
+    const base_query = CATEGORIES[category][subcategory];
+    const parts = [];
+    if (name) parts.push(`"${name}"`);
+    if (location) parts.push(`"${location}"`);
+    if (extra) parts.push(extra);
+    if (email_domain) parts.push(`intext:"${email_domain}"`);
+
+    const final_query = [...parts, base_query].join(" ");
+    document.getElementById('entry_final_query').value = final_query;
+
+    window.open("https://www.google.com/search?q=" + encodeURIComponent(final_query), "_blank");
+}
+
+function generateSuggestions() {
+    const base_name = document.getElementById('entry_name').value.trim();
+    const location = document.getElementById('entry_location').value.trim();
+    const category = document.getElementById('combo_category').value;
+    const subcategory = document.getElementById('combo_subcategory').value;
+
+    if (!category || !subcategory) {
+        alert("Selecione categoria e subcategoria");
+        return;
+    }
+
+    const base_query = CATEGORIES[category][subcategory];
+    let name_variations = base_name ? [base_name] : [];
+    if (base_name.includes(' ')) {
+        const parts = base_name.split(' ');
+        if (parts.length > 1) name_variations.push(`${parts[0]} ${parts[1]}`, parts[0]);
+    }
+
+    const contact_terms = ["email", "contato", "curriculo", "perfil", "linkedin", "cv"];
+    let suggestions = [];
+
+    for (let name of name_variations.length ? name_variations : [""]) {
+        for (let term of contact_terms) {
+            for (let domain of EMAIL_DOMAINS) {
+                const parts = [];
+                if (name) parts.push(`"${name}"`);
+                if (location) parts.push(`"${location}"`);
+                parts.push(`"${term}"`);
+                parts.push(`intext:"${domain}"`);
+                parts.push(base_query);
+                suggestions.push(parts.join(" "));
+                if (suggestions.length >= 10) break;
+            }
+            if (suggestions.length >= 10) break;
+        }
+        if (suggestions.length >= 10) break;
+    }
+
+    const frame = document.getElementById('frame_suggestions');
+    frame.innerHTML = "";
+    for (let sug of suggestions) {
+        const btn = document.createElement('button');
+        btn.className = "suggestion";
+        btn.textContent = sug;
+        btn.onclick = () => window.open("https://www.google.com/search?q=" + encodeURIComponent(sug), "_blank");
+        frame.appendChild(btn);
+    }
+}
+
+function updateSubcategories() {
+    const category = document.getElementById('combo_category').value;
+    const subcategorySelect = document.getElementById('combo_subcategory');
+    subcategorySelect.innerHTML = "";
+    if (category) {
+        for (let sub of Object.keys(CATEGORIES[category])) {
+            const option = document.createElement('option');
+            option.value = sub;
+            option.text = sub;
+            subcategorySelect.appendChild(option);
+        }
+    }
+}
+
+function clearAll() {
+    document.getElementById('entry_name').value = "";
+    document.getElementById('entry_location').value = "";
+    document.getElementById('entry_extra').value = "";
+    document.getElementById('combo_category').value = "";
+    document.getElementById('combo_subcategory').innerHTML = "";
+    document.getElementById('combo_email').value = "";
+    document.getElementById('entry_final_query').value = "";
+    document.getElementById('frame_suggestions').innerHTML = "";
+}
+
+// ===================== Inicialização =====================
+window.onload = function() {
+    const combo = document.getElementById('combo_category');
+    for (let cat of Object.keys(CATEGORIES)) {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.text = cat;
+        combo.appendChild(option);
+    }
+
+    const emailCombo = document.getElementById('combo_email');
+    for (let e of EMAIL_DOMAINS) {
+        const option = document.createElement('option');
+        option.value = e;
+        option.text = e;
+        emailCombo.appendChild(option);
+    }
+};
+</script>
+
+</body>
+</html>
